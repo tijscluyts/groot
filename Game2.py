@@ -176,13 +176,20 @@ while running:
         player_vel_y += gravity
         player_rect.y += player_vel_y
 
-        # Platform collisions
+        # Platform collisions with fall-through, except floor
         on_ground = False
         for plat in platforms:
-            if player_rect.colliderect(plat) and player_vel_y >=0:
-                player_rect.bottom = plat.top
-                player_vel_y = 0
-                on_ground = True
+            if player_rect.colliderect(plat) and player_vel_y >= 0:
+                if plat.top < HEIGHT - 60:  # floor platform stays solid
+                    if not keys[pygame.K_DOWN]:
+                        player_rect.bottom = plat.top
+                        player_vel_y = 0
+                        on_ground = True
+                else:
+                    # always collide with the floor
+                    player_rect.bottom = plat.top
+                    player_vel_y = 0
+                    on_ground = True
 
         # Trail
         if player_moved:
