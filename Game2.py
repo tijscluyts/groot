@@ -123,6 +123,10 @@ def draw_game_over_screen():
     restart_text = menu_font.render("Press SPACE to Restart", True, (180, 180, 180))
     screen.blit(restart_text, (WIDTH//2 - restart_text.get_width()//2, HEIGHT//2 + 50))
 
+# ---------------- Music ----------------
+pygame.mixer.music.load("assets/music/music.mp3")  # load your music file
+pygame.mixer.music.play(-1)  # Loop indefinitely
+
 # ---------------- Main Loop ----------------
 running = True
 while running:
@@ -164,6 +168,7 @@ while running:
             if player_rect.x + player_width > WIDTH:
                 player_rect.x = WIDTH - player_width
         if keys[pygame.K_SPACE] and on_ground:
+            pygame.mixer.Sound("assets/music/jump.mp3").play().set_volume(0.1)
             player_vel_y = jump_velocity
             on_ground = False
             moved_this_frame = True
@@ -225,11 +230,13 @@ while running:
         # Collectibles
         for c in collectibles[:]:
             if player_rect.colliderect(c):
+                pygame.mixer.Sound("assets/music/coin.mp3").play().set_volume(0.4)
                 score += 1
                 collectibles.remove(c)
 
         # Stage transition
         if not collectibles:
+            pygame.mixer.Sound("assets/music/level.mp3").play().set_volume(0.2)
             available = [i for i in range(len(stages)) if i != last_stage_index]
             stage_index = random.choice(available)
             last_stage_index = stage_index
