@@ -15,7 +15,7 @@ YELLOW = (255, 255, 0)  # Collectibles
 GRAY = (100, 100, 100)  # Platforms
 BLACK = (0, 0, 0)
 
-# Background for gameplay
+# Background
 background_img = pygame.image.load("assets/background.png").convert()
 background_img = pygame.transform.scale(background_img, (WIDTH, HEIGHT))
 
@@ -25,11 +25,8 @@ menu_font = pygame.font.SysFont(None, 36)
 small_font = pygame.font.SysFont(None, 28)
 
 # Load character sprites
-player_width, player_height = 60, 90  # scale with new screen
-run_frames = [
-    pygame.image.load(f"assets/character/block_0_{i}.png").convert_alpha()
-    for i in range(6)
-]
+player_width, player_height = 60, 90
+run_frames = [pygame.image.load(f"assets/character/block_0_{i}.png").convert_alpha() for i in range(6)]
 jump_up = pygame.image.load("assets/character/block_1_0.png").convert_alpha()
 jump_down = pygame.image.load("assets/character/block_1_1.png").convert_alpha()
 
@@ -54,6 +51,7 @@ facing_right = True
 # Game states
 START, PLAYING, GAME_OVER = 0, 1, 2
 game_state = START
+game_over_sound_played = False  # Tracks if game over sound has played
 
 # Player trail + clones
 player_trail = []
@@ -66,7 +64,6 @@ last_threshold = 0
 score = 0
 
 # ---------------- Stages ----------------
-# Scaled positions proportionally for 1200x600
 stages = [
     {"platforms":[pygame.Rect(0, HEIGHT-60, WIDTH, 60),
                   pygame.Rect(225, HEIGHT-270, 180, 30),
@@ -124,8 +121,8 @@ def draw_game_over_screen():
     screen.blit(restart_text, (WIDTH//2 - restart_text.get_width()//2, HEIGHT//2 + 50))
 
 # ---------------- Music ----------------
-pygame.mixer.music.load("assets/music/music.mp3")  # load your music file
-pygame.mixer.music.play(-1)  # Loop indefinitely
+pygame.mixer.music.load("assets/music/music.mp3")
+pygame.mixer.music.play(-1)
 
 # ---------------- Main Loop ----------------
 running = True
@@ -150,6 +147,7 @@ while running:
             stage_index = random.randint(0, len(stages)-1)
             last_stage_index = stage_index
             platforms, collectibles = copy_stage(stages[stage_index])
+            game_over_sound_played = False  # Reset
 
     elif game_state == PLAYING:
         # Background
@@ -181,17 +179,16 @@ while running:
         player_vel_y += gravity
         player_rect.y += player_vel_y
 
-        # Platform collisions with fall-through, except floor
+        # Platform collisions with fall-through
         on_ground = False
         for plat in platforms:
             if player_rect.colliderect(plat) and player_vel_y >= 0:
-                if plat.top < HEIGHT - 60:  # floor platform stays solid
+                if plat.top < HEIGHT - 60:  # Non-floor platforms
                     if not keys[pygame.K_DOWN]:
                         player_rect.bottom = plat.top
                         player_vel_y = 0
                         on_ground = True
-                else:
-                    # always collide with the floor
+                else:  # Floor
                     player_rect.bottom = plat.top
                     player_vel_y = 0
                     on_ground = True
@@ -200,15 +197,13 @@ while running:
         if player_moved:
             player_trail.append((player_rect.x, player_rect.y))
 
-        # First clone spawn after 1.5s
+        # Clone spawning logic
         if player_moved and len(clones) == 0 and pygame.time.get_ticks() - player_move_time >= 1500:
             delay_frames = int(1.5*60)
             clone_trail = player_trail[-delay_frames:] if len(player_trail)>=delay_frames else player_trail.copy()
             clones.append({"rect": pygame.Rect(player_rect.x, player_rect.y, player_width, player_height),
                            "trail": clone_trail, "delay": delay_frames,
                            "facing_right": facing_right})
-
-        # More clones every 10 points
         if score // 10 > last_threshold and len(clones) > 0:
             last_threshold = score // 10
             delay_frames = int(1.5*60*(len(clones)+1))
@@ -271,6 +266,11 @@ while running:
         screen.blit(small_font.render(f"Clones: {len(clones)}", True, BLACK), (10, 40))
 
     elif game_state == GAME_OVER:
+        # Play game over sound once
+        if not game_over_sound_played:
+            pygame.mixer.Sound("assets/music/game-over.mp3").play().set_volume(0.5)
+            game_over_sound_played = True
+
         draw_game_over_screen()
         if keys[pygame.K_SPACE]:
             # Reset game
@@ -287,6 +287,7 @@ while running:
             last_stage_index = stage_index
             platforms, collectibles = copy_stage(stages[stage_index])
             game_state = PLAYING
+            game_over_sound_played = False  # Reset flag
 
     pygame.display.flip()
 
