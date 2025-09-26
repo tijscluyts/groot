@@ -70,33 +70,33 @@ score = 0
 stages = [
     {  # Stage 1
         "platforms": [
-            pygame.Rect(0, HEIGHT - 60, WIDTH, 60),  # floor
-            pygame.Rect(150, HEIGHT - 220, 240, 30),
-            pygame.Rect(475, HEIGHT - 380, 240, 30),
-            pygame.Rect(800, HEIGHT - 220, 240, 30),
+            pygame.Rect(0, HEIGHT-50, WIDTH, 60),        # floor
+            pygame.Rect(150, HEIGHT-220, 240, 30),
+            pygame.Rect(475, HEIGHT-380, 240, 30),
+            pygame.Rect(800, HEIGHT-220, 240, 30),
         ],
     },
     {  # Stage 2
         "platforms": [
-            pygame.Rect(0, HEIGHT - 60, WIDTH, 60),  # floor
-            pygame.Rect(300, HEIGHT - 220, 240, 30),
-            pygame.Rect(650, HEIGHT - 380, 240, 30),
+            pygame.Rect(0, HEIGHT-50, WIDTH, 60),        # floor
+            pygame.Rect(300, HEIGHT-220, 240, 30),
+            pygame.Rect(650, HEIGHT-380, 240, 30),
         ],
     },
     {  # Stage 3
         "platforms": [
-            pygame.Rect(0, HEIGHT - 60, WIDTH, 60),  # floor
-            pygame.Rect(150, HEIGHT - 220, 240, 30),
-            pygame.Rect(475, HEIGHT - 380, 240, 30),
-            pygame.Rect(800, HEIGHT - 380, 240, 30),
+            pygame.Rect(0, HEIGHT-50, WIDTH, 60),        # floor
+            pygame.Rect(150, HEIGHT-220, 240, 30),
+            pygame.Rect(475, HEIGHT-380, 240, 30),
+            pygame.Rect(800, HEIGHT-300, 240, 30),
         ],
     },
     {  # Stage 4
         "platforms": [
-            pygame.Rect(0, HEIGHT - 60, WIDTH, 60),  # floor
-            pygame.Rect(150, HEIGHT - 380, 240, 30),
-            pygame.Rect(475, HEIGHT - 220, 240, 30),
-            pygame.Rect(800, HEIGHT - 380, 240, 30),
+            pygame.Rect(0, HEIGHT-50, WIDTH, 60),        # floor
+            pygame.Rect(150, HEIGHT-300, 240, 30),
+            pygame.Rect(475, HEIGHT-220, 240, 30),
+            pygame.Rect(800, HEIGHT-380, 240, 30),
         ],
     }
 ]
@@ -106,11 +106,11 @@ for stage in stages:
     stage["collectibles"] = []
     for plat in stage["platforms"]:
         # skip floor for coins
-        if plat.y == HEIGHT - 60:
+        if plat.y == HEIGHT - 50:
             continue
         coin_rect = pygame.Rect(
-            plat.centerx - 15,  # center coin horizontally
-            plat.y - 40,  # 40px above platform
+            plat.centerx - 15,   # center coin horizontally
+            plat.y - 60,         # 60px above platform
             30, 30
         )
         stage["collectibles"].append(coin_rect)
@@ -389,9 +389,6 @@ while running:
             for coin in plat_collectibles:
                 coin_type = "blue" if random.random() < 0.08 else "normal"
                 collectibles.append({"rect": coin.copy(), "type": coin_type, "spawn_time": pygame.time.get_ticks()})
-
-        # Draw the ground as gray
-        pygame.draw.rect(screen, GRAY, platforms[0])
 
         # --- Draw platforms with texture ---
         for plat in platforms[1:]:
