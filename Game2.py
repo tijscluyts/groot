@@ -1,5 +1,6 @@
 import pygame
 import random
+import colorsys
 
 pygame.init()
 
@@ -11,13 +12,15 @@ clock = pygame.time.Clock()
 
 # ---------------- Colors ----------------
 WHITE = (255, 255, 255)
-YELLOW = (255, 255, 0)  # Collectibles
 GRAY = (100, 100, 100)  # Platforms
 BLACK = (0, 0, 0)
 
 # ---------------- Background ----------------
 background_img = pygame.image.load("assets/background.png").convert()
 background_img = pygame.transform.scale(background_img, (WIDTH, HEIGHT))
+
+# ---------------- Platform Texture ----------------
+platform_texture = pygame.image.load("assets/platform.png").convert_alpha()
 
 # ---------------- Fonts ----------------
 title_font = pygame.font.SysFont("chiller", 96)
@@ -34,15 +37,6 @@ run_frames = [pygame.transform.scale(f, (player_width, player_height)) for f in 
 jump_up = pygame.transform.scale(jump_up, (player_width, player_height))
 jump_down = pygame.transform.scale(jump_down, (player_width, player_height))
 
-# ---------------- Collectible Animation ----------------
-coin_frames = [pygame.image.load(f"assets/coin/coin_{i}.png").convert_alpha() for i in range(5)]  # adjust number of frames
-coin_size = 30
-coin_frames = [pygame.transform.scale(frame, (coin_size, coin_size)) for frame in coin_frames]
-
-coin_frame_index = 0
-coin_frame_timer = 0
-coin_frame_speed = 5  # frames per animation step
-
 # ---------------- Player Setup ----------------
 player_rect = pygame.Rect(150, HEIGHT - 150, player_width, player_height)
 player_vel_y = 0
@@ -51,7 +45,6 @@ gravity = 1
 player_speed = 7
 on_ground = False
 
-# Player animation state
 frame_index = 0
 frame_timer = 0
 current_sprite = run_frames[0]
@@ -63,8 +56,8 @@ game_state = START
 game_over_sound_played = False
 
 # ---------------- Player Trail + Clones ----------------
-player_trail = []      # list of (x,y) appended when player moves
-clones = []            # each clone: dict with rect, trail, delay, facing_right, frame_index, frame_timer, prev_x, prev_y, last_dy
+player_trail = []
+clones = []
 player_moved = False
 player_move_time = None
 last_threshold = 0
@@ -74,34 +67,52 @@ score = 0
 
 # ---------------- Stages ----------------
 stages = [
-    {"platforms": [pygame.Rect(0, HEIGHT-60, WIDTH, 60),
-                   pygame.Rect(225, HEIGHT-270, 180, 30),
-                   pygame.Rect(525, HEIGHT-375, 270, 30),
-                   pygame.Rect(900, HEIGHT-300, 225, 30)],
-     "collectibles": [pygame.Rect(240, HEIGHT-315, 30, 30),
-                      pygame.Rect(570, HEIGHT-420, 30, 30),
-                      pygame.Rect(930, HEIGHT-345, 30, 30)]},
-    {"platforms": [pygame.Rect(0, HEIGHT-60, WIDTH, 60),
-                   pygame.Rect(300, HEIGHT-225, 225, 30),
-                   pygame.Rect(750, HEIGHT-450, 300, 30)],
-     "collectibles": [pygame.Rect(330, HEIGHT-270, 30, 30),
-                      pygame.Rect(780, HEIGHT-495, 30, 30),
-                      pygame.Rect(975, HEIGHT-105, 30, 30)]},
-    {"platforms": [pygame.Rect(0, HEIGHT-60, WIDTH, 60),
-                   pygame.Rect(150, HEIGHT-330, 270, 30),
-                   pygame.Rect(525, HEIGHT-225, 225, 30),
-                   pygame.Rect(900, HEIGHT-420, 300, 30)],
-     "collectibles": [pygame.Rect(180, HEIGHT-375, 30, 30),
-                      pygame.Rect(555, HEIGHT-255, 30, 30),
-                      pygame.Rect(930, HEIGHT-465, 30, 30)]},
-    {"platforms": [pygame.Rect(0, HEIGHT-60, WIDTH, 60),
-                   pygame.Rect(375, HEIGHT-300, 225, 30),
-                   pygame.Rect(675, HEIGHT-375, 150, 30),
-                   pygame.Rect(1050, HEIGHT-225, 300, 30)],
-     "collectibles": [pygame.Rect(405, HEIGHT-345, 30, 30),
-                      pygame.Rect(705, HEIGHT-420, 30, 30),
-                      pygame.Rect(1080, HEIGHT-270, 30, 30)]},
+    {   # Stage 1
+        "platforms": [
+            pygame.Rect(0, HEIGHT-60, WIDTH, 60),        # floor
+            pygame.Rect(150, HEIGHT-220, 240, 30),
+            pygame.Rect(475, HEIGHT-380, 240, 30),
+            pygame.Rect(800, HEIGHT-220, 240, 30),
+        ],
+    },
+    {   # Stage 2
+        "platforms": [
+            pygame.Rect(0, HEIGHT-60, WIDTH, 60),        # floor
+            pygame.Rect(300, HEIGHT-220, 240, 30),
+            pygame.Rect(650, HEIGHT-380, 240, 30),
+        ],
+    },
+    {   # Stage 3
+        "platforms": [
+            pygame.Rect(0, HEIGHT-60, WIDTH, 60),        # floor
+            pygame.Rect(150, HEIGHT-220, 240, 30),
+            pygame.Rect(475, HEIGHT-380, 240, 30),
+            pygame.Rect(800, HEIGHT-380, 240, 30),
+        ],
+    },
+    {   # Stage 4
+        "platforms": [
+            pygame.Rect(0, HEIGHT-60, WIDTH, 60),        # floor
+            pygame.Rect(150, HEIGHT-380, 240, 30),
+            pygame.Rect(475, HEIGHT-220, 240, 30),
+            pygame.Rect(800, HEIGHT-380, 240, 30),
+        ],
+    }
 ]
+
+# ---------------- Generate coins 40px above elevated platforms ----------------
+for stage in stages:
+    stage["collectibles"] = []
+    for plat in stage["platforms"]:
+        # skip floor for coins
+        if plat.y == HEIGHT-60:
+            continue
+        coin_rect = pygame.Rect(
+            plat.centerx - 15,   # center coin horizontally
+            plat.y - 40,         # 40px above platform
+            30, 30
+        )
+        stage["collectibles"].append(coin_rect)
 
 def copy_stage(stage):
     return [plat.copy() for plat in stage["platforms"]], [c.copy() for c in stage["collectibles"]]
@@ -109,7 +120,20 @@ def copy_stage(stage):
 # choose first stage
 stage_index = random.randint(0, len(stages)-1)
 last_stage_index = stage_index
-platforms, collectibles = copy_stage(stages[stage_index])
+platforms, _ = copy_stage(stages[stage_index])
+
+# ---------------- Coin Animation ----------------
+coin_frames = [pygame.image.load(f"assets/coin/coin_{i}.png").convert_alpha() for i in range(5)]
+coin_size = 30
+coin_frames = [pygame.transform.scale(f, (coin_size, coin_size)) for f in coin_frames]
+coin_frame_index = 0
+coin_frame_timer = 0
+coin_frame_speed = 5
+
+# ---------------- Blue Coin / Invincibility ----------------
+invincible = False
+invincible_timer = 0
+invincible_duration = 5000  # 5 seconds
 
 # ---------------- Screens ----------------
 def draw_start_screen():
@@ -130,7 +154,6 @@ def draw_game_over_screen():
     screen.blit(restart_text, (WIDTH//2 - restart_text.get_width()//2, HEIGHT//2 + 50))
 
 # ---------------- Music ----------------
-# safe attempts (ignore missing files)
 try:
     pygame.mixer.music.load("assets/music/music.mp3")
     pygame.mixer.music.play(-1)
@@ -153,7 +176,6 @@ while running:
         draw_start_screen()
         if keys[pygame.K_SPACE]:
             game_state = PLAYING
-            # reset
             score = 0
             last_threshold = 0
             player_trail = []
@@ -162,8 +184,13 @@ while running:
             player_move_time = None
             stage_index = random.randint(0, len(stages)-1)
             last_stage_index = stage_index
-            platforms, collectibles = copy_stage(stages[stage_index])
+            platforms, plat_collectibles = copy_stage(stages[stage_index])
+            collectibles = []
+            for c in plat_collectibles:
+                coin_type = "blue" if random.random() < 0.05 else "normal"
+                collectibles.append({"rect": c.copy(), "type": coin_type, "spawn_time": pygame.time.get_ticks()})
             game_over_sound_played = False
+            invincible = False
 
     # ---------------- PLAYING STATE ----------------
     elif game_state == PLAYING:
@@ -180,12 +207,6 @@ while running:
             facing_right = True
             moved_this_frame = True
 
-        # --- Update coin animation ---
-        coin_frame_timer += 1
-        if coin_frame_timer >= coin_frame_speed:
-            coin_frame_timer = 0
-            coin_frame_index = (coin_frame_index + 1) % len(coin_frames)
-
         # --- Wrap around screen edges ---
         if player_rect.right < 0:
             player_rect.left = WIDTH
@@ -193,7 +214,6 @@ while running:
             player_rect.right = 0
 
         if keys[pygame.K_SPACE] and on_ground:
-            # jump sound (if present)
             try:
                 pygame.mixer.Sound("assets/music/jump.mp3").play().set_volume(0.1)
             except Exception:
@@ -211,7 +231,7 @@ while running:
         player_vel_y += gravity
         player_rect.y += player_vel_y
 
-        # --- Platform collision (fall-through except floor) ---
+        # --- Platform collision ---
         on_ground = False
         for plat in platforms:
             if player_rect.colliderect(plat) and player_vel_y >= 0:
@@ -233,12 +253,10 @@ while running:
         if player_moved and len(clones) == 0 and pygame.time.get_ticks() - player_move_time >= 1500:
             delay_frames = int(1.5 * 60)
             clone_trail = player_trail[-delay_frames:] if len(player_trail) >= delay_frames else player_trail.copy()
-            # initial position: earliest in the trail if available (so clone doesn't spawn ON player)
             if clone_trail:
                 init_x, init_y = clone_trail[0]
             else:
                 init_x, init_y = player_rect.x, player_rect.y
-            # infer facing from trail if possible
             if len(clone_trail) >= 2:
                 fx = clone_trail[-1][0] - clone_trail[0][0]
                 initial_facing = True if fx >= 0 else False
@@ -281,48 +299,51 @@ while running:
                 "last_dy": 0
             })
 
-        # --- Update clones positions (advance along their trails) ---
+        # --- Update clones ---
         for clone in clones:
-            # append current player position to clone's trail so it continues moving forward
             clone["trail"].append((player_rect.x, player_rect.y))
-
-            # if the trail has grown beyond the delay, pop the oldest and move clone there
             if len(clone["trail"]) > clone["delay"]:
                 bx, by = clone["trail"].pop(0)
-
                 prev_x = clone.get("prev_x", clone["rect"].x)
                 prev_y = clone.get("prev_y", clone["rect"].y)
                 dx = bx - prev_x
                 dy = by - prev_y
-
-                # update clone rect
                 clone["rect"].x = bx
                 clone["rect"].y = by
-
-                # update facing based on dx (if dx == 0 keep previous facing)
                 if dx > 0:
                     clone["facing_right"] = True
                 elif dx < 0:
                     clone["facing_right"] = False
-
-                # store prev pos and last dy for animation
                 clone["prev_x"] = bx
                 clone["prev_y"] = by
                 clone["last_dy"] = dy
-
-            # collision with player -> game over
-            if player_rect.colliderect(clone["rect"]):
+            if player_rect.colliderect(clone["rect"]) and not invincible:
                 game_state = GAME_OVER
 
-        # --- Collectibles ---
+        # --- Update coin animation ---
+        coin_frame_timer += 1
+        if coin_frame_timer >= coin_frame_speed:
+            coin_frame_timer = 0
+            coin_frame_index = (coin_frame_index + 1) % len(coin_frames)
+
+        # --- Collectibles collision ---
         for c in collectibles[:]:
-            if player_rect.colliderect(c):
+            if player_rect.colliderect(c["rect"]):
                 try:
                     pygame.mixer.Sound("assets/music/coin.mp3").play().set_volume(0.4)
                 except Exception:
                     pass
-                score += 1
+                if c["type"] == "blue":
+                    invincible = True
+                    invincible_timer = pygame.time.get_ticks()
+                else:
+                    score += 1
                 collectibles.remove(c)
+
+        # --- Update invincibility ---
+        if invincible:
+            if pygame.time.get_ticks() - invincible_timer >= invincible_duration:
+                invincible = False
 
         # --- Stage transition ---
         if not collectibles:
@@ -333,15 +354,39 @@ while running:
             available = [i for i in range(len(stages)) if i != last_stage_index]
             stage_index = random.choice(available)
             last_stage_index = stage_index
-            platforms, collectibles = copy_stage(stages[stage_index])
+            platforms, plat_collectibles = copy_stage(stages[stage_index])
+            collectibles = []
+            for c in plat_collectibles:
+                coin_type = "blue" if random.random() < 0.08 else "normal"
+                collectibles.append({"rect": c.copy(), "type": coin_type, "spawn_time": pygame.time.get_ticks()})
 
-        # --- Draw platforms & collectibles ---
-        for plat in platforms:
-            pygame.draw.rect(screen, GRAY, plat)
+        # Draw the ground as gray
+        pygame.draw.rect(screen, GRAY, platforms[0])
+
+        # --- Draw platforms with texture ---
+        for plat in platforms[1:]:
+            tex_w, tex_h = platform_texture.get_size()
+            for x in range(plat.x, plat.x + plat.width, tex_w):
+                for y in range(plat.y, plat.y + plat.height, tex_h):
+                    screen.blit(platform_texture, (x, y))
+
+        # --- Draw collectibles ---
         for c in collectibles:
-            screen.blit(coin_frames[coin_frame_index], (c.x, c.y))
+            if c["type"] == "blue":  # special coin
+                # Calculate a cycling hue based on time
+                t = pygame.time.get_ticks() / 500  # speed of color cycle
+                hue = (t % 1.0)  # hue goes from 0.0 to 1.0
+                r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1, 1)]
 
-        # --- Draw player (animation) ---
+                # Apply color overlay
+                colored_coin = coin_frames[coin_frame_index].copy()
+                colored_coin.fill((r, g, b, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                screen.blit(colored_coin, (c["rect"].x, c["rect"].y))
+            else:
+                # normal coin
+                screen.blit(coin_frames[coin_frame_index], (c["rect"].x, c["rect"].y))
+
+        # --- Draw player ---
         if not on_ground:
             current_sprite = jump_up if player_vel_y < 0 else jump_down
         else:
@@ -350,37 +395,38 @@ while running:
                 frame_timer = 0
                 frame_index = (frame_index + 1) % len(run_frames)
             current_sprite = run_frames[frame_index]
+
         sprite_to_draw = current_sprite if facing_right else pygame.transform.flip(current_sprite, True, False)
+
+        # Apply invincibility color cycling
+        if invincible:
+
+            t = pygame.time.get_ticks() / 500  # speed of color cycling
+            hue = (t % 1.0)
+            r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1, 1)]
+            tinted_sprite = sprite_to_draw.copy()
+            tinted_sprite.fill((r, g, b, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            sprite_to_draw = tinted_sprite
+
         screen.blit(sprite_to_draw, (player_rect.x, player_rect.y))
 
-        # --- Draw clones (shadow + independent animation) ---
+        # --- Draw clones ---
         for clone in clones:
-            # Determine whether clone is on ground by checking platforms near its bottom
             clone_on_ground = False
             for plat in platforms:
                 if clone["rect"].colliderect(plat) and abs(clone["rect"].bottom - plat.top) <= 6:
                     clone_on_ground = True
                     break
-
-            # use last_dy to determine up/down; default 0 if missing
             last_dy = clone.get("last_dy", 0)
-
-            # Choose sprite for clone
             if not clone_on_ground:
-                # in air: choose up/down based on last recorded dy
                 clone_sprite = jump_up if last_dy < 0 else jump_down
             else:
-                # on ground: animate using clone's own timers
                 clone["frame_timer"] += 1
                 if clone["frame_timer"] >= 5:
                     clone["frame_timer"] = 0
                     clone["frame_index"] = (clone["frame_index"] + 1) % len(run_frames)
                 clone_sprite = run_frames[clone["frame_index"]]
-
-            # flip according to clone's stored facing
             sprite_to_draw_clone = clone_sprite if clone["facing_right"] else pygame.transform.flip(clone_sprite, True, False)
-
-            # create shadowed/darker version for the clone
             shadow = sprite_to_draw_clone.copy()
             shadow.fill((150, 150, 150, 140), special_flags=pygame.BLEND_RGBA_MULT)
             screen.blit(shadow, (clone["rect"].x, clone["rect"].y))
@@ -388,6 +434,8 @@ while running:
         # --- HUD ---
         screen.blit(small_font.render(f"Score: {score}", True, BLACK), (10, 10))
         screen.blit(small_font.render(f"Clones: {len(clones)}", True, BLACK), (10, 40))
+        if invincible:
+            screen.blit(small_font.render("INVINCIBLE!", True, (0, 0, 255)), (10, 70))
 
     # ---------------- GAME OVER ----------------
     elif game_state == GAME_OVER:
@@ -400,7 +448,6 @@ while running:
 
         draw_game_over_screen()
         if keys[pygame.K_SPACE]:
-            # reset everything
             player_rect = pygame.Rect(150, HEIGHT - 150, player_width, player_height)
             player_vel_y = 0
             on_ground = False
@@ -412,9 +459,14 @@ while running:
             clones = []
             stage_index = random.randint(0, len(stages)-1)
             last_stage_index = stage_index
-            platforms, collectibles = copy_stage(stages[stage_index])
+            platforms, plat_collectibles = copy_stage(stages[stage_index])
+            collectibles = []
+            for c in plat_collectibles:
+                coin_type = "blue" if random.random() < 0.05 else "normal"
+                collectibles.append({"rect": c.copy(), "type": coin_type, "spawn_time": pygame.time.get_ticks()})
             game_state = PLAYING
             game_over_sound_played = False
+            invincible = False
 
     pygame.display.flip()
 
