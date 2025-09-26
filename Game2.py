@@ -34,6 +34,15 @@ run_frames = [pygame.transform.scale(f, (player_width, player_height)) for f in 
 jump_up = pygame.transform.scale(jump_up, (player_width, player_height))
 jump_down = pygame.transform.scale(jump_down, (player_width, player_height))
 
+# ---------------- Collectible Animation ----------------
+coin_frames = [pygame.image.load(f"assets/coin/coin_{i}.png").convert_alpha() for i in range(5)]  # adjust number of frames
+coin_size = 30
+coin_frames = [pygame.transform.scale(frame, (coin_size, coin_size)) for frame in coin_frames]
+
+coin_frame_index = 0
+coin_frame_timer = 0
+coin_frame_speed = 5  # frames per animation step
+
 # ---------------- Player Setup ----------------
 player_rect = pygame.Rect(150, HEIGHT - 150, player_width, player_height)
 player_vel_y = 0
@@ -170,6 +179,12 @@ while running:
             player_rect.x += player_speed
             facing_right = True
             moved_this_frame = True
+
+        # --- Update coin animation ---
+        coin_frame_timer += 1
+        if coin_frame_timer >= coin_frame_speed:
+            coin_frame_timer = 0
+            coin_frame_index = (coin_frame_index + 1) % len(coin_frames)
 
         # --- Wrap around screen edges ---
         if player_rect.right < 0:
@@ -324,7 +339,7 @@ while running:
         for plat in platforms:
             pygame.draw.rect(screen, GRAY, plat)
         for c in collectibles:
-            pygame.draw.rect(screen, YELLOW, c)
+            screen.blit(coin_frames[coin_frame_index], (c.x, c.y))
 
         # --- Draw player (animation) ---
         if not on_ground:
