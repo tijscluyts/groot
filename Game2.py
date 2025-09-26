@@ -1,6 +1,17 @@
+
+import sys
+import os
 import pygame
 import random
 import colorsys
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 pygame.init()
 
@@ -15,23 +26,23 @@ WHITE = (255, 255, 255)
 GRAY = (100, 100, 100)  # Platforms
 BLACK = (0, 0, 0)
 
-# ---------------- Background ----------------
-background_img = pygame.image.load("assets/background.png").convert()
+ # ---------------- Background ----------------
+background_img = pygame.image.load(resource_path("assets/background.png")).convert()
 background_img = pygame.transform.scale(background_img, (WIDTH, HEIGHT))
 
 # ---------------- Platform Texture ----------------
-platform_texture = pygame.image.load("assets/platform.png").convert_alpha()
+platform_texture = pygame.image.load(resource_path("assets/platform.png")).convert_alpha()
 
 # ---------------- Fonts ----------------
 title_font = pygame.font.SysFont("chiller", 96)
 menu_font = pygame.font.SysFont(None, 36)
 small_font = pygame.font.SysFont(None, 28)
 
-# ---------------- Character Sprites ----------------
+ # ---------------- Character Sprites ----------------
 player_width, player_height = 60, 90
-run_frames = [pygame.image.load(f"assets/character/block_0_{i}.png").convert_alpha() for i in range(6)]
-jump_up = pygame.image.load("assets/character/block_1_0.png").convert_alpha()
-jump_down = pygame.image.load("assets/character/block_1_1.png").convert_alpha()
+run_frames = [pygame.image.load(resource_path(f"assets/character/block_0_{i}.png")).convert_alpha() for i in range(6)]
+jump_up = pygame.image.load(resource_path("assets/character/block_1_0.png")).convert_alpha()
+jump_down = pygame.image.load(resource_path("assets/character/block_1_1.png")).convert_alpha()
 
 run_frames = [pygame.transform.scale(f, (player_width, player_height)) for f in run_frames]
 jump_up = pygame.transform.scale(jump_up, (player_width, player_height))
@@ -122,8 +133,8 @@ stage_index = random.randint(0, len(stages)-1)
 last_stage_index = stage_index
 platforms, _ = copy_stage(stages[stage_index])
 
-# ---------------- Coin Animation ----------------
-coin_frames = [pygame.image.load(f"assets/coin/coin_{i}.png").convert_alpha() for i in range(5)]
+ # ---------------- Coin Animation ----------------
+coin_frames = [pygame.image.load(resource_path(f"assets/coin/coin_{i}.png")).convert_alpha() for i in range(5)]
 coin_size = 30
 coin_frames = [pygame.transform.scale(f, (coin_size, coin_size)) for f in coin_frames]
 coin_frame_index = 0
@@ -153,9 +164,9 @@ def draw_game_over_screen():
     restart_text = menu_font.render("Press SPACE to Restart", True, (180, 180, 180))
     screen.blit(restart_text, (WIDTH//2 - restart_text.get_width()//2, HEIGHT//2 + 50))
 
-# ---------------- Music ----------------
+ # ---------------- Music ----------------
 try:
-    pygame.mixer.music.load("assets/music/music.mp3")
+    pygame.mixer.music.load(resource_path("assets/music/music.mp3"))
     pygame.mixer.music.play(-1)
 except Exception:
     pass
@@ -215,7 +226,7 @@ while running:
 
         if keys[pygame.K_SPACE] and on_ground:
             try:
-                pygame.mixer.Sound("assets/music/jump.mp3").play().set_volume(0.1)
+                pygame.mixer.Sound(resource_path("assets/music/jump.mp3")).play().set_volume(0.1)
             except Exception:
                 pass
             player_vel_y = jump_velocity
@@ -330,7 +341,7 @@ while running:
         for c in collectibles[:]:
             if player_rect.colliderect(c["rect"]):
                 try:
-                    pygame.mixer.Sound("assets/music/coin.mp3").play().set_volume(0.4)
+                    pygame.mixer.Sound(resource_path("assets/music/coin.mp3")).play().set_volume(0.4)
                 except Exception:
                     pass
                 if c["type"] == "blue":
@@ -348,7 +359,7 @@ while running:
         # --- Stage transition ---
         if not collectibles:
             try:
-                pygame.mixer.Sound("assets/music/level.mp3").play().set_volume(0.2)
+                pygame.mixer.Sound(resource_path("assets/music/level.mp3")).play().set_volume(0.2)
             except Exception:
                 pass
             available = [i for i in range(len(stages)) if i != last_stage_index]
@@ -441,7 +452,7 @@ while running:
     elif game_state == GAME_OVER:
         if not game_over_sound_played:
             try:
-                pygame.mixer.Sound("assets/music/game-over.mp3").play().set_volume(0.5)
+                pygame.mixer.Sound(resource_path("assets/music/game-over.mp3")).play().set_volume(0.5)
             except Exception:
                 pass
             game_over_sound_played = True
@@ -471,3 +482,7 @@ while running:
     pygame.display.flip()
 
 pygame.quit()
+
+# Add main guard for PyInstaller compatibility
+if __name__ == "__main__":
+    pass  # The script already runs as main, but this guard is needed for PyInstaller
